@@ -1,0 +1,88 @@
+# Example multi-GPU training job.
+# Requires NVIDIA GPU Operator installed: kubectl get pods -n gpu-operator
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: llama-finetune
+  namespace: ai-team-a
+  labels:
+    workload-type: training
+spec:
+  backoffLimit: 0           # don't retry failed training automatically
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: llama-finetune
+        workload-type: training
+    spec:
+      restartPolicy: Never
+      priorityClassName: gpu-training
+      # Schedule onto nodes with H100 GPUs
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-H100-80GB-HBM3
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      # Place all pods on the same NVLink island when possible
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: llama-finetune
+      containers:
+        - name: trainer
+          image: nvcr.io/nvidia/pytorch:24.07-py3
+          imagePullPolicy: IfNotPresent
+          command:
+            - bash
+            - -lc
+            - |
+              set -euo pipefail
+              torchrun \
+                --nproc_per_node=8 \
+                --nnodes=$WORLD_SIZE \
+                --node_rank=$RANK \
+                --master_addr=$MASTER_ADDR \
+                --master_port=29500 \
+                train.py --config /config/run.yaml
+          resources:
+            limits:
+              nvidia.com/gpu: 8
+              cpu: "64"
+              memory: 512Gi
+              # IB or RoCE allocation if NIC plugin is in use:
+              # rdma/hca: 8
+            requests:
+              nvidia.com/gpu: 8
+              cpu: "32"
+              memory: 256Gi
+          env:
+            - name: NCCL_DEBUG
+              value: WARN
+            - name: NCCL_IB_DISABLE
+              value: "0"
+            - name: NCCL_SOCKET_IFNAME
+              value: "^lo,docker0"
+          volumeMounts:
+            - { name: shm,        mountPath: /dev/shm }
+            - { name: dataset,    mountPath: /datasets, readOnly: true }
+            - { name: checkpoints, mountPath: /checkpoints }
+            - { name: config,     mountPath: /config }
+      volumes:
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 64Gi
+        - name: dataset
+          persistentVolumeClaim:
+            claimName: training-datasets
+        - name: checkpoints
+          persistentVolumeClaim:
+            claimName: training-checkpoints
+        - name: config
+          configMap:
+            name: llama-finetune-config

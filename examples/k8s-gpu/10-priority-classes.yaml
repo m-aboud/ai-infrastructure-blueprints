@@ -1,0 +1,30 @@
+# Priority classes for GPU workloads
+# Higher value = higher priority. preemptionPolicy controls whether
+# the pod can preempt lower-priority pods.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: gpu-production
+value: 100000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "Production inference / latency-sensitive GPU workloads."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: gpu-training
+value: 50000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "Production training jobs."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: gpu-batch
+value: 10000
+globalDefault: true
+preemptionPolicy: Never
+description: "Best-effort batch / experimentation. Default. Cannot preempt."

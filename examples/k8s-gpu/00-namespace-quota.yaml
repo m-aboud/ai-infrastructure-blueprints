@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-team-a
+  labels:
+    name: ai-team-a
+    purpose: training
+    pod-security.kubernetes.io/enforce: baseline
+---
+# Limit the team to 16 GPU-hours of concurrent allocation
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: gpu-quota
+  namespace: ai-team-a
+spec:
+  hard:
+    requests.nvidia.com/gpu: "16"
+    limits.nvidia.com/gpu: "16"
+    requests.cpu: "256"
+    requests.memory: 2Ti
+    persistentvolumeclaims: "20"
+---
+# Optional: enforce minimum/default container resource requests
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: container-defaults
+  namespace: ai-team-a
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "4"
+        memory: 16Gi
+      defaultRequest:
+        cpu: "2"
+        memory: 8Gi
