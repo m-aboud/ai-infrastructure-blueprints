@@ -115,4 +115,4 @@ These are **planning blueprints**, not vendor-validated designs. Always validate
 
 ## 📄 License
 
-[MIT](LICENSE) © Mohammed Abood
+[MIT](LICENSE) © Mohammed Aboud
